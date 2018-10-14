@@ -1,18 +1,18 @@
-#include <stdio.h>
-#include "parser.h"
+#include "shell.h"
 
 int main(void) {
 	char buf[1024];
 	tline * line;
-	int i,j;
 
-	printf("==> ");	
+	prompt();
 	while (fgets(buf, 1024, stdin)) {
 		
+		// Leer una linea del taclado
 		line = tokenize(buf);
 		if (line==NULL) {
 			continue;
 		}
+
 		if (line->redirect_input != NULL) {
 			printf("redirección de entrada: %s\n", line->redirect_input);
 		}
@@ -24,14 +24,9 @@ int main(void) {
 		}
 		if (line->background) {
 			printf("comando a ejecutarse en background\n");
-		} 
-		for (i=0; i<line->ncommands; i++) {
-			printf("orden %d (%s):\n", i, line->commands[i].filename);
-			for (j=0; j<line->commands[i].argc; j++) {
-				printf("  argumento %d: %s\n", j, line->commands[i].argv[j]);
-			}
 		}
-		printf("==> ");	
+		execline(line);
+		prompt();
 	}
 	return 0;
 }

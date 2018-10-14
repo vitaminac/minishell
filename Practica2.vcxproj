@@ -78,9 +78,11 @@
     <Library Include="libparser_64.a" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="shell.h" />
     <ClInclude Include="parser.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="shell.c" />
     <ClCompile Include="test.c" />
   </ItemGroup>
   <ItemDefinitionGroup />
