@@ -75,9 +75,13 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
-    <ClCompile Include="main.cpp" />
+    <Library Include="libparser_64.a" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="parser.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="test.c" />
   </ItemGroup>
   <ItemDefinitionGroup />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
