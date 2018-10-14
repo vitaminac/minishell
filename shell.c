@@ -30,6 +30,7 @@ int execline(tline * line) {
 				break;
 			}
 		}
+		// para que no vuelva a programa principal en subprocess
 		exit(status);
 	}
 	else {
