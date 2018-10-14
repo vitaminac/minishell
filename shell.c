@@ -20,24 +20,22 @@ int execute(tcommand command) {
 }
 
 int execline(tline * line) {
-	int status;
+	int status = 0;
 	pid_t pid = fork();
 	if (pid == 0) {
 		for (int i = 0; i < line->ncommands; i++) {
 			status = execute(line->commands[i]);
 			// early exit if failing
 			if (status != 0) {
-				return status;
+				break;
 			}
 		}
+		exit(status);
 	}
 	else {
-		if (line->background) {
-			return 0;
-		}
-		else {
+		if (!line->background) {
 			wait(&status);
-			return status;
 		}
+		return status;
 	}
 }
