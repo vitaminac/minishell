@@ -6,7 +6,7 @@ int main(void) {
 
 	prompt();
 	while (fgets(buf, 1024, stdin)) {
-		
+
 		// Leer una linea del taclado
 		line = tokenize(buf);
 		if (line==NULL) {
