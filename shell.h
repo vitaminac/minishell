@@ -11,6 +11,7 @@
 #define FD_STDOUT 1
 #define FD_STDERR 2
 #define ERR_FILE(FILE) "fichero %s: Error %d. Descripcion del error\n", FILE, errno
+#define ERR_COMMAND "mandato: No se encuentra el mandato\n"
 
 // Mostrar en pantalla un prompt (los símbolos msh> seguidos de un espacio).
 void prompt();

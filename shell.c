@@ -13,7 +13,11 @@ int execute(tcommand command) {
 	int status;
 	pid_t pid = fork();
 	if (pid == 0) {
-		return execvp(command.filename, command.argv);
+		status = execve(command.filename, command.argv, NULL);
+		if ((errno & (EACCES | EIO | EISDIR | ELIBBAD | ENOENT | ENOEXEC | ENOTDIR)) != 0) {
+			printf(ERR_COMMAND);
+		}
+		exit(status);
 	}
 	else {
 		wait(&status);
