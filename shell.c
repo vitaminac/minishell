@@ -2,13 +2,14 @@
 
 pid_t backgound[MAX_BGTASK];
 char cwd[BUFFER_SIZE];
+pid_t current;
 
 void prompt() {
 	printf("msh:>%s$", getcwd(cwd, BUFFER_SIZE));
 }
 
 // Ejecuta el commando
-int execute(tcommand command) {
+pid_t execute(tcommand command) {
 	int status;
 	pid_t pid = fork();
 	if (pid == 0) {
@@ -22,8 +23,7 @@ int execute(tcommand command) {
 		exit(status);
 	}
 	else {
-		wait(&status);
-		return status;
+		return pid;
 	}
 }
 
@@ -117,13 +117,14 @@ int execline(tline * line) {
 	}
 	else {
 		if (line->ncommands > 0) {
-			pid_t pid = fork();
-			if (pid == 0) {
+			current = fork();
+			if (current == 0) {
 				tpipeline pipeline = create_fds(line);
-				// ejecutamos hasta penultimo comando
+				// ejecutamos hasta ultimo comando
 				for (int i = 0; i < line->ncommands; i++) {
 					pipe(i, pipeline);
-					status = execute(line->commands[i]);
+					current = execute(line->commands[i]);
+					waitpid(current, &status, WUNTRACED);
 					// early exit if failing
 					if (status != 0) {
 						break;
@@ -135,12 +136,37 @@ int execline(tline * line) {
 			}
 			else {
 				// si no es una tarea backgound, esperamos a que termina
-				if (!line->background) {
-					wait(&status);
+				if (line->background) {
+				}
+				else {
+					waitpid(current, &status, WUNTRACED);
+					current = 0;
 				}
 			}
 		}
 	}
 	// termina devolviendo el estado
 	return status;
+}
+
+void sendSignalToCurrentProcess(int signum) {
+	if (current != 0) {
+		kill(current, signum);
+		current = 0;
+	}
+	if (signal(SIGINT, sendSignalToCurrentProcess) == SIG_ERR)
+	{
+		exit(EXIT_FAILURE);
+	}
+}
+
+void init() {
+	if (signal(SIGINT, sendSignalToCurrentProcess) == SIG_ERR)
+	{
+		exit(EXIT_FAILURE);
+	}
+	if (signal(SIGQUIT, sendSignalToCurrentProcess) == SIG_ERR)
+	{
+		exit(EXIT_FAILURE);
+	}
 }

@@ -3,6 +3,8 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 #include "parser.h"
 
@@ -29,3 +31,5 @@ void prompt();
    se espera a que todos los mandatos hayan finalizado
    para volver a mostrar el prompt y repetir el proceso. */
 int execline(tline * line);
+
+void init();
