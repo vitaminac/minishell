@@ -1,10 +1,10 @@
 #include "shell.h"
 
 pid_t backgound[MAX_BGTASK];
-
+char cwd[BUFFER_SIZE];
 
 void prompt() {
-	printf("msh> ");
+	printf("msh:>%s$", getcwd(cwd, BUFFER_SIZE));
 }
 
 // Ejecuta el commando
@@ -107,27 +107,37 @@ void pipe(int i, tpipeline pipeline) {
 
 int execline(tline * line) {
 	int status = 0;
-	if (line->ncommands > 0) {
-		pid_t pid = fork();
-		if (pid == 0) {
-			tpipeline pipeline = create_fds(line);
-			// ejecutamos hasta penultimo comando
-			for (int i = 0; i < line->ncommands; i++) {
-				pipe(i, pipeline);
-				status = execute(line->commands[i]);
-				// early exit if failing
-				if (status != 0) {
-					break;
-				}
-			}
-			close_fds(pipeline);
-			// para que no vuelva a programa principal en subprocess
-			exit(status);
+	if (line->ncommands == 1 && (strcmp("cd", line->commands[0].argv[0]) == 0)) {
+		if (line->commands->argc > 1) {
+			chdir(line->commands[0].argv[1]);
 		}
 		else {
-			// si no es una tarea backgound, esperamos a que termina
-			if (!line->background) {
-				wait(&status);
+			chdir(getenv("HOME"));
+		}
+	}
+	else {
+		if (line->ncommands > 0) {
+			pid_t pid = fork();
+			if (pid == 0) {
+				tpipeline pipeline = create_fds(line);
+				// ejecutamos hasta penultimo comando
+				for (int i = 0; i < line->ncommands; i++) {
+					pipe(i, pipeline);
+					status = execute(line->commands[i]);
+					// early exit if failing
+					if (status != 0) {
+						break;
+					}
+				}
+				close_fds(pipeline);
+				// para que no vuelva a programa principal en subprocess
+				exit(status);
+			}
+			else {
+				// si no es una tarea backgound, esperamos a que termina
+				if (!line->background) {
+					wait(&status);
+				}
 			}
 		}
 	}

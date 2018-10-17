@@ -1,6 +1,7 @@
 #include "shell.h"
 
 int main(void) {
+	// echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null
 	char buf[1024];
 	tline * line;
 
@@ -9,7 +10,7 @@ int main(void) {
 
 		// Leer una linea del taclado
 		line = tokenize(buf);
-		if (line==NULL) {
+		if (line == NULL) {
 			continue;
 		}
 
@@ -25,6 +26,13 @@ int main(void) {
 		if (line->background) {
 			printf("comando a ejecutarse en background\n");
 		}
+		for (int i = 0; i < line->ncommands; i++) {
+			printf("orden %d (%s):\n", i, line->commands[i].filename);
+			for (int j = 0; j < line->commands[i].argc; j++) {
+				printf("  argumento %d: %s\n", j, line->commands[i].argv[j]);
+			}
+		}
+		printf("-----------------OUTPUT-------------------------\n");
 		execline(line);
 		prompt();
 	}
