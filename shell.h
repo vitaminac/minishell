@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <memory.h>
 
 #include "parser.h"
 
@@ -19,19 +20,12 @@
 
 typedef struct {
 	int n;
-	int * fds
+	int * fds;
 } tpipeline;
 
-typedef enum
-{
-	Running, Stopped, Killed
-} State;
-
 typedef struct {
-	pid_t pidf;
-	State state;
-	char * program;
-	char * argv[];
+	pid_t pid;
+	char * info;
 } Task;
 
 // Mostrar en pantalla un prompt (los símbolos msh> seguidos de un espacio).
@@ -46,3 +40,4 @@ void prompt();
 int execline(tline * line);
 
 void init();
+void destroy();

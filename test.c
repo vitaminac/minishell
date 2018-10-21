@@ -41,5 +41,7 @@ int main(void) {
 			prompt();
 		}
 	}
+
+	destroy();
 	return 0;
 }

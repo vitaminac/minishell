@@ -1,6 +1,6 @@
 #include "shell.h"
 
-pid_t background[MAX_BGTASK];
+Task * background[MAX_BGTASK];
 char cwd[BUFFER_SIZE];
 pid_t current = 0;
 
@@ -8,11 +8,42 @@ void prompt() {
 	printf("msh:>%s$", getcwd(cwd, BUFFER_SIZE));
 }
 
+#pragma region BackgroundTask
+
 /* buscar un slot libre de backgroud */
-int bg(pid_t pid) {
+char * deepcopy(tline * line) {
+	int old_length = 0;
+	int new_length;
+	char * info = malloc(2 * sizeof(char));
+	info[0] = ' ';
+	info[1] = '\0';
+	tcommand command;
+	for (int i = 0; i < line->ncommands; i++) {
+		command = line->commands[i];
+		for (int j = 0; j < command.argc; j++) {
+			new_length = old_length + strlen(command.argv[j]) + 1;
+			realloc(info, new_length * sizeof(char));
+			strcpy(info + old_length + 1, command.argv[j]);
+			if (j == 0) {
+				if (old_length != 0) {
+					info[old_length] = '|';
+				}
+			}
+			else {
+				info[old_length] = ' ';
+			}
+			old_length = new_length;
+		}
+	}
+	return info;
+}
+
+int bg(pid_t pid, tline * line) {
 	for (int i = 0; i < MAX_BGTASK; i++) {
-		if (background[i] == 0) {
-			background[i] = pid;
+		if (background[i] == NULL) {
+			background[i] = (Task *)malloc(sizeof(Task));
+			background[i]->pid = pid;
+			background[i]->info = deepcopy(line);
 			return i;
 		}
 	}
@@ -23,15 +54,59 @@ int fg(pid_t pid) {
 	int status = 0;
 	/* comprueba que esta ejecutando en backgroud */
 	for (int i = 0; i < MAX_BGTASK; i++) {
-		if (background[i] == pid) {
-			background[i] = 0;
+		if (background[i]->pid == pid) {
+			free(background[i]->info);
+			free(background[i]);
+			background[i] = NULL;
 			current = pid;
 			waitpid(pid, &status, WUNTRACED);
 			current = 0;
 			return status;
 		}
 	}
+	return 0;
 }
+
+void jobs() {
+	Task * task;
+	for (int i = 0; i < MAX_BGTASK; i++) {
+		if (background[i] != NULL) {
+			task = background[i];
+			printf("[%d]+ Running \t %s\n", i, background[i]->info);
+		}
+	}
+}
+
+/* comprobar que si hay tarea terminada en el segundo plano */
+void check_bg_task() {
+	int status;
+	for (int i = 0; i < MAX_BGTASK; i++) {
+		if (background[i] != NULL) {
+			pid_t pid = waitpid(background[i]->pid, &status, WNOHANG | WUNTRACED);
+			if (pid > 0) {
+				if (WIFEXITED(status)) {
+#ifdef DEBUG
+					fprintf(stdout, "Background task %d exited, status=%d\n", background[i]->pid, WEXITSTATUS(status));
+#endif
+				}
+				else if (WIFSIGNALED(status)) {
+#ifdef DEBUG
+					fprintf(stdout, "Background task %d was terminated with a status of: %d \n", background[i]->pid, WTERMSIG(status));
+#endif
+				}
+				else if (WIFSTOPPED(status)) {
+#ifdef DEBUG
+					fprintf(stdout, "Background task %d stopped (signal %d)\n", background[i]->pid, WSTOPSIG(status));
+#endif
+				}
+				free(background[i]->info);
+				free(background[i]);
+				background[i] = NULL;
+			}
+		}
+	}
+}
+#pragma endregion
 
 // Ejecuta el commando
 pid_t execute(tcommand command) {
@@ -130,22 +205,6 @@ void pipe(int i, tpipeline pipeline) {
 	dup2(pipeline.fds[pipeline.n - 1], FD_STDERR);
 }
 
-/* comprobar que si hay tarea terminada en el segundo plano */
-void check_bg_task() {
-	for (int i = 0; i < MAX_BGTASK; i++) {
-		if (background[i] != 0) {
-			pid_t pid = waitpid(background[i], NULL, WNOHANG);
-			if (pid > 0) {
-				background[i] = 0;
-			}
-			else if (pid < 0) {
-				fprintf(stderr, "waited for background task %d failed", background[i]);
-				exit(EXIT_FAILURE);
-			}
-		}
-	}
-}
-
 /* ejecutar mandato interno de shell */
 int inlinecommand(tline * line) {
 	if (line->ncommands == 1) {
@@ -161,6 +220,10 @@ int inlinecommand(tline * line) {
 		}
 		else if (strcmp("exit", line->commands[0].argv[0]) == 0) {
 			exit(EXIT_SUCCESS);
+		}
+		else if (strcmp("jobs", line->commands[0].argv[0]) == 0) {
+			jobs();
+			return 0;
 		}
 	}
 	return -1;
@@ -197,7 +260,7 @@ int execline(tline * line) {
 #ifdef DEBUG
 					fprintf(stdout, "Ejecutamos la tarea en el segundo plano\n");
 #endif 
-					if (bg(current) < 0) {
+					if (bg(current, line) < 0) {
 #ifdef DEBUG
 						fprintf(stderr, "Ha llegado al maximo numero de tareas\n");
 #endif 
@@ -275,5 +338,14 @@ void init() {
 #endif
 		exit(EXIT_FAILURE);
 	}
-	memset(background, 0, MAX_BGTASK * sizeof(pid_t));
+	memset(background, 0, MAX_BGTASK * sizeof(Task *));
+}
+
+void destroy() {
+	for (int i = 0; i < MAX_BGTASK; i++) {
+		if (background[i] != NULL) {
+			free(background[i]->info);
+			free(background[i]);
+		}
+	}
 }
