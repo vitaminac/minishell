@@ -8,6 +8,7 @@
 
 #include "parser.h"
 
+#define DEBUG
 #define BUFFER_SIZE 4096
 #define MAX_BGTASK 32
 #define FD_STDIN 0
@@ -20,6 +21,18 @@ typedef struct {
 	int n;
 	int * fds
 } tpipeline;
+
+typedef enum
+{
+	Running, Stopped, Killed
+} State;
+
+typedef struct {
+	pid_t pidf;
+	State state;
+	char * program;
+	char * argv[];
+} Task;
 
 // Mostrar en pantalla un prompt (los símbolos msh> seguidos de un espacio).
 void prompt();

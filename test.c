@@ -16,6 +16,7 @@ int main(void) {
 				continue;
 			}
 
+#ifdef DEBUG
 			if (line->redirect_input != NULL) {
 				printf("redirección de entrada: %s\n", line->redirect_input);
 			}
@@ -34,6 +35,8 @@ int main(void) {
 					printf("  argumento %d: %s\n", j, line->commands[i].argv[j]);
 				}
 			}
+#endif
+
 			execline(line);
 			prompt();
 		}

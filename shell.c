@@ -1,11 +1,36 @@
 #include "shell.h"
 
-pid_t backgound[MAX_BGTASK];
+pid_t background[MAX_BGTASK];
 char cwd[BUFFER_SIZE];
-pid_t current;
+pid_t current = 0;
 
 void prompt() {
 	printf("msh:>%s$", getcwd(cwd, BUFFER_SIZE));
+}
+
+/* buscar un slot libre de backgroud */
+int bg(pid_t pid) {
+	for (int i = 0; i < MAX_BGTASK; i++) {
+		if (background[i] == 0) {
+			background[i] = pid;
+			return i;
+		}
+	}
+	return -1;
+}
+
+int fg(pid_t pid) {
+	int status = 0;
+	/* comprueba que esta ejecutando en backgroud */
+	for (int i = 0; i < MAX_BGTASK; i++) {
+		if (background[i] == pid) {
+			background[i] = 0;
+			current = pid;
+			waitpid(pid, &status, WUNTRACED);
+			current = 0;
+			return status;
+		}
+	}
 }
 
 // Ejecuta el commando
@@ -105,17 +130,50 @@ void pipe(int i, tpipeline pipeline) {
 	dup2(pipeline.fds[pipeline.n - 1], FD_STDERR);
 }
 
-int execline(tline * line) {
-	int status = 0;
-	if (line->ncommands == 1 && (strcmp("cd", line->commands[0].argv[0]) == 0)) {
-		if (line->commands->argc > 1) {
-			chdir(line->commands[0].argv[1]);
-		}
-		else {
-			chdir(getenv("HOME"));
+/* comprobar que si hay tarea terminada en el segundo plano */
+void check_bg_task() {
+	for (int i = 0; i < MAX_BGTASK; i++) {
+		if (background[i] != 0) {
+			pid_t pid = waitpid(background[i], NULL, WNOHANG);
+			if (pid > 0) {
+				background[i] = 0;
+			}
+			else if (pid < 0) {
+				fprintf(stderr, "waited for background task %d failed", background[i]);
+				exit(EXIT_FAILURE);
+			}
 		}
 	}
-	else {
+}
+
+/* ejecutar mandato interno de shell */
+int inlinecommand(tline * line) {
+	if (line->ncommands == 1) {
+		if (strcmp("cd", line->commands[0].argv[0]) == 0) {
+			if (line->commands->argc > 1) {
+				chdir(line->commands[0].argv[1]);
+				return 0;
+			}
+			else {
+				chdir(getenv("HOME"));
+				return 0;
+			}
+		}
+		else if (strcmp("exit", line->commands[0].argv[0]) == 0) {
+			exit(EXIT_SUCCESS);
+		}
+	}
+	return -1;
+}
+
+int execline(tline * line) {
+	int status = 0;
+	check_bg_task();
+	if (inlinecommand(line) == 0) {
+		return 0;
+	}
+	// comprobar el argumentos
+	if (line != NULL) {
 		if (line->ncommands > 0) {
 			current = fork();
 			if (current == 0) {
@@ -135,11 +193,45 @@ int execline(tline * line) {
 				exit(status);
 			}
 			else {
-				// si no es una tarea backgound, esperamos a que termina
 				if (line->background) {
+#ifdef DEBUG
+					fprintf(stdout, "Ejecutamos la tarea en el segundo plano\n");
+#endif 
+					if (bg(current) < 0) {
+#ifdef DEBUG
+						fprintf(stderr, "Ha llegado al maximo numero de tareas\n");
+#endif 
+						exit(EXIT_FAILURE);
+					}
 				}
 				else {
-					waitpid(current, &status, WUNTRACED);
+					// esperar a que termine
+					if (waitpid(current, &status, WUNTRACED) < 0) {
+#ifdef DEBUG
+						fprintf(stderr, "wait pid %d failed\n", current);
+#endif 
+						// si ha fallado una vez, reintentamos
+						waitpid(current, &status, WUNTRACED);
+
+					}
+					if (WIFEXITED(status)) {
+						status = WEXITSTATUS(status);
+#ifdef DEBUG
+						fprintf(stderr, "process %d was terminated by calling exit with code %d\n", current, status);
+#endif
+					}
+					else if (WIFSIGNALED(status)) {
+						status = WTERMSIG(status);
+#ifdef DEBUG
+						fprintf(stderr, "close by signal %d\n", status);
+#endif
+					}
+					else if (WIFSTOPPED(status)) {
+						status = WSTOPSIG(status);
+#ifdef DEBUG
+						fprintf(stderr, "close by signal %d\n", status);
+#endif
+					}
 					current = 0;
 				}
 			}
@@ -149,24 +241,39 @@ int execline(tline * line) {
 	return status;
 }
 
-void sendSignalToCurrentProcess(int signum) {
+void redirectSignal(int signum) {
 	if (current != 0) {
 		kill(current, signum);
-		current = 0;
+#ifdef DEBUG
+		fprintf(stderr, "sent kill signal to current process %d\n", current);
+#endif
 	}
-	if (signal(SIGINT, sendSignalToCurrentProcess) == SIG_ERR)
+#ifdef DEBUG
+	fprintf(stderr, "try to registering signal handler SIGINT\n");
+#endif
+	if (signal(SIGINT, redirectSignal) == SIG_ERR)
 	{
+#ifdef DEBUG
+		fprintf(stderr, "register signal handler SIGINT failed\n");
+#endif
 		exit(EXIT_FAILURE);
 	}
 }
 
 void init() {
-	if (signal(SIGINT, sendSignalToCurrentProcess) == SIG_ERR)
+	if (signal(SIGINT, redirectSignal) == SIG_ERR)
 	{
+#ifdef DEBUG
+		fprintf(stderr, "register signal handler SIGINT failed\n");
+#endif
 		exit(EXIT_FAILURE);
 	}
-	if (signal(SIGQUIT, sendSignalToCurrentProcess) == SIG_ERR)
+	if (signal(SIGQUIT, redirectSignal) == SIG_ERR)
 	{
+#ifdef DEBUG
+		fprintf(stderr, "register signal handler SIGQUIT failed\n");
+#endif
 		exit(EXIT_FAILURE);
 	}
+	memset(background, 0, MAX_BGTASK * sizeof(pid_t));
 }
