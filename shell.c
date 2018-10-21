@@ -50,19 +50,17 @@ int bg(pid_t pid, tline * line) {
 	return -1;
 }
 
-int fg(pid_t pid) {
+int fg(int id) {
 	int status = 0;
 	/* comprueba que esta ejecutando en backgroud */
-	for (int i = 0; i < MAX_BGTASK; i++) {
-		if (background[i]->pid == pid) {
-			free(background[i]->info);
-			free(background[i]);
-			background[i] = NULL;
-			current = pid;
-			waitpid(pid, &status, WUNTRACED);
-			current = 0;
-			return status;
-		}
+	if (id < MAX_BGTASK && background[id] != NULL) {
+		current = background[id]->pid;
+		free(background[id]->info);
+		free(background[id]);
+		background[id] = NULL;
+		waitpid(current, &status, WUNTRACED);
+		current = 0;
+		return status;
 	}
 	return 0;
 }
@@ -223,6 +221,10 @@ int inlinecommand(tline * line) {
 		}
 		else if (strcmp("jobs", line->commands[0].argv[0]) == 0) {
 			jobs();
+			return 0;
+		}
+		else if (strcmp("fg", line->commands[0].argv[0]) == 0) {
+			fg(atoi(line->commands[0].argv[1]));
 			return 0;
 		}
 	}
