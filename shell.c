@@ -1,11 +1,66 @@
 #include "shell.h"
 
 Task * background[MAX_BGTASK];
+int last_bg_task;
 char cwd[BUFFER_SIZE];
 pid_t current = 0;
 
 void prompt() {
 	printf("msh:>%s$", getcwd(cwd, BUFFER_SIZE));
+}
+
+int debug_wait(pid_t pid, int * status, int options) {
+	pid_t result;
+	options |= WUNTRACED;
+#ifdef DEBUG
+	fprintf(stdout, "waiting pid %d\n", pid);
+#endif 
+	result = waitpid(current, status, options);
+	if (result == 0) {
+#ifdef DEBUG
+		fprintf(stdout, "child process %d's state haven't changed yet\n", pid);
+#endif
+	}
+	else {
+		if (result < 0) {
+#ifdef DEBUG
+			fprintf(stderr, "wait pid %d failed\n", pid);
+			if (errno == ECHILD) {
+				fprintf(stderr, "Child does not exist\n");
+			}
+			else if (errno == EINVAL) {
+				fprintf(stderr, "Bad argument passed to waitpid\n");
+			}
+			else if (errno == ECHILD) {
+				fprintf(stderr, "child process %d doesn't exist!\n", pid);
+			}
+			else {
+				fprintf(stderr, "Unknown error\n");
+			}
+#endif 
+			// si ha fallado una vez, reintentamos
+			waitpid(current, status, options);
+#ifdef DEBUG
+			fprintf(stdout, "waited pid %d again\n", pid);
+#endif 
+		}
+		if (WIFEXITED(*status)) {
+#ifdef DEBUG
+			fprintf(stdout, "task %d exited, status=%d\n", pid, WEXITSTATUS(*status));
+#endif
+		}
+		else if (WIFSIGNALED(*status)) {
+#ifdef DEBUG
+			fprintf(stdout, "task %d was terminated with a status of: %d \n", pid, WTERMSIG(*status));
+#endif
+		}
+		else if (WIFSTOPPED(*status)) {
+#ifdef DEBUG
+			fprintf(stdout, "task %d stopped by signal %d\n", pid, WSTOPSIG(*status));
+#endif
+		}
+	}
+	return result;
 }
 
 #pragma region BackgroundTask
@@ -44,6 +99,7 @@ int bg(pid_t pid, tline * line) {
 			background[i] = (Task *)malloc(sizeof(Task));
 			background[i]->pid = pid;
 			background[i]->info = deepcopy(line);
+			last_bg_task = i;
 			return i;
 		}
 	}
@@ -58,11 +114,10 @@ int fg(int id) {
 		free(background[id]->info);
 		free(background[id]);
 		background[id] = NULL;
-		waitpid(current, &status, WUNTRACED);
+		debug_wait(current, &status, 0);
 		current = 0;
-		return status;
 	}
-	return 0;
+	return status;
 }
 
 void jobs() {
@@ -80,23 +135,7 @@ void check_bg_task() {
 	int status;
 	for (int i = 0; i < MAX_BGTASK; i++) {
 		if (background[i] != NULL) {
-			pid_t pid = waitpid(background[i]->pid, &status, WNOHANG | WUNTRACED);
-			if (pid > 0) {
-				if (WIFEXITED(status)) {
-#ifdef DEBUG
-					fprintf(stdout, "Background task %d exited, status=%d\n", background[i]->pid, WEXITSTATUS(status));
-#endif
-				}
-				else if (WIFSIGNALED(status)) {
-#ifdef DEBUG
-					fprintf(stdout, "Background task %d was terminated with a status of: %d \n", background[i]->pid, WTERMSIG(status));
-#endif
-				}
-				else if (WIFSTOPPED(status)) {
-#ifdef DEBUG
-					fprintf(stdout, "Background task %d stopped (signal %d)\n", background[i]->pid, WSTOPSIG(status));
-#endif
-				}
+			if (debug_wait(background[i]->pid, &status, WNOHANG)) {
 				free(background[i]->info);
 				free(background[i]);
 				background[i] = NULL;
@@ -224,7 +263,12 @@ int inlinecommand(tline * line) {
 			return 0;
 		}
 		else if (strcmp("fg", line->commands[0].argv[0]) == 0) {
-			fg(atoi(line->commands[0].argv[1]));
+			if (line->commands->argc > 1) {
+				fg(atoi(line->commands[0].argv[1]));
+			}
+			else {
+				fg(last_bg_task);
+			}
 			return 0;
 		}
 	}
@@ -241,13 +285,14 @@ int execline(tline * line) {
 	if (line != NULL) {
 		if (line->ncommands > 0) {
 			current = fork();
+			pid_t program;
 			if (current == 0) {
 				tpipeline pipeline = create_fds(line);
 				// ejecutamos hasta ultimo comando
 				for (int i = 0; i < line->ncommands; i++) {
 					pipe(i, pipeline);
-					current = execute(line->commands[i]);
-					waitpid(current, &status, WUNTRACED);
+					program = execute(line->commands[i]);
+					debug_wait(program, &status, 0);
 					// early exit if failing
 					if (status != 0) {
 						break;
@@ -271,34 +316,9 @@ int execline(tline * line) {
 				}
 				else {
 					// esperar a que termine
-					if (waitpid(current, &status, WUNTRACED) < 0) {
-#ifdef DEBUG
-						fprintf(stderr, "wait pid %d failed\n", current);
-#endif 
-						// si ha fallado una vez, reintentamos
-						waitpid(current, &status, WUNTRACED);
-
-					}
-					if (WIFEXITED(status)) {
-						status = WEXITSTATUS(status);
-#ifdef DEBUG
-						fprintf(stderr, "process %d was terminated by calling exit with code %d\n", current, status);
-#endif
-					}
-					else if (WIFSIGNALED(status)) {
-						status = WTERMSIG(status);
-#ifdef DEBUG
-						fprintf(stderr, "close by signal %d\n", status);
-#endif
-					}
-					else if (WIFSTOPPED(status)) {
-						status = WSTOPSIG(status);
-#ifdef DEBUG
-						fprintf(stderr, "close by signal %d\n", status);
-#endif
-					}
-					current = 0;
+					debug_wait(current, &status, 0);
 				}
+				current = 0;
 			}
 		}
 	}
@@ -306,34 +326,39 @@ int execline(tline * line) {
 	return status;
 }
 
-void redirectSignal(int signum) {
+void redirect_signal(int signum) {
+#ifdef DEBUG
+	fprintf(stdout, "process %d received signal %d\n", getpid(), signum);
+#endif
 	if (current != 0) {
 		kill(current, signum);
 #ifdef DEBUG
-		fprintf(stderr, "sent kill signal to current process %d\n", current);
+		fprintf(stderr, "sent signal %d to current process %d\n", signum, current);
 #endif
 	}
+	else {
 #ifdef DEBUG
-	fprintf(stderr, "try to registering signal handler SIGINT\n");
+		fprintf(stderr, "try to registering signal handler SIGINT\n");
 #endif
-	if (signal(SIGINT, redirectSignal) == SIG_ERR)
-	{
+		if (signal(SIGINT, redirect_signal) == SIG_ERR)
+		{
 #ifdef DEBUG
-		fprintf(stderr, "register signal handler SIGINT failed\n");
+			fprintf(stderr, "register signal handler SIGINT failed\n");
 #endif
-		exit(EXIT_FAILURE);
+			exit(EXIT_FAILURE);
+		}
 	}
 }
 
 void init() {
-	if (signal(SIGINT, redirectSignal) == SIG_ERR)
+	if (signal(SIGINT, redirect_signal) == SIG_ERR)
 	{
 #ifdef DEBUG
 		fprintf(stderr, "register signal handler SIGINT failed\n");
 #endif
 		exit(EXIT_FAILURE);
 	}
-	if (signal(SIGQUIT, redirectSignal) == SIG_ERR)
+	if (signal(SIGQUIT, redirect_signal) == SIG_ERR)
 	{
 #ifdef DEBUG
 		fprintf(stderr, "register signal handler SIGQUIT failed\n");

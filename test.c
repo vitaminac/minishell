@@ -1,5 +1,9 @@
 #include "shell.h"
 
+// TODO: fix signal kill background process
+// TODO: usar pipe y no es necesario usar tmpfile
+// TODO: usar FILE *
+
 int main(void) {
 	// echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null
 	char buf[BUFFER_SIZE];
