@@ -82,7 +82,6 @@
     <ClInclude Include="parser.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="abc.c" />
     <ClCompile Include="shell.c" />
     <ClCompile Include="test.c" />
   </ItemGroup>

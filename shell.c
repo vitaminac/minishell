@@ -1,15 +1,18 @@
 #include "shell.h"
 
-Task * background[MAX_BGTASK];
+int fd_stdout, fd_stderr;
+JobInfo * background[MAX_BGTASK];
 int last_bg_task;
 char cwd[BUFFER_SIZE];
 pid_t current = 0;
+int groupId = 88;
+
 
 void prompt() {
 	printf("msh:>%s$", getcwd(cwd, BUFFER_SIZE));
 }
 
-int debug_wait(pid_t pid, int * status, int options) {
+pid_t debug_wait(pid_t pid, int * status, int options) {
 	pid_t result;
 	options |= WUNTRACED;
 #ifdef DEBUG
@@ -46,17 +49,17 @@ int debug_wait(pid_t pid, int * status, int options) {
 		}
 		if (WIFEXITED(*status)) {
 #ifdef DEBUG
-			fprintf(stdout, "task %d exited, status=%d\n", pid, WEXITSTATUS(*status));
+			fprintf(stdout, "task %d exited with status code %d\n", result, WEXITSTATUS(*status));
 #endif
 		}
 		else if (WIFSIGNALED(*status)) {
 #ifdef DEBUG
-			fprintf(stdout, "task %d was terminated with a status of: %d \n", pid, WTERMSIG(*status));
+			fprintf(stdout, "task %d was terminated by signal %d \n", result, WTERMSIG(*status));
 #endif
 		}
 		else if (WIFSTOPPED(*status)) {
 #ifdef DEBUG
-			fprintf(stdout, "task %d stopped by signal %d\n", pid, WSTOPSIG(*status));
+			fprintf(stdout, "task %d was stopped by signal %d\n", result, WSTOPSIG(*status));
 #endif
 		}
 	}
@@ -96,7 +99,7 @@ char * deepcopy(tline * line) {
 int bg(pid_t pid, tline * line) {
 	for (int i = 0; i < MAX_BGTASK; i++) {
 		if (background[i] == NULL) {
-			background[i] = (Task *)malloc(sizeof(Task));
+			background[i] = (JobInfo *)malloc(sizeof(JobInfo));
 			background[i]->pid = pid;
 			background[i]->info = deepcopy(line);
 			last_bg_task = i;
@@ -121,7 +124,7 @@ int fg(int id) {
 }
 
 void jobs() {
-	Task * task;
+	JobInfo * task;
 	for (int i = 0; i < MAX_BGTASK; i++) {
 		if (background[i] != NULL) {
 			task = background[i];
@@ -145,101 +148,41 @@ void check_bg_task() {
 }
 #pragma endregion
 
-// Ejecuta el commando
-pid_t execute(tcommand command) {
-	int status;
-	pid_t pid = fork();
+// Ejecuta el commando por separado y redirecciona la entrada y salida si es necesario
+pid_t execute(tcommand command, int input, int * output, int groupId) {
+	pid_t pid;
+	int pipeline[2];
+	if (output != NULL) {
+		pipe(pipeline);
+	}
+	pid = fork();
 	if (pid == 0) {
-		status = execve(command.filename, command.argv, NULL);
+		if (background) {
+			// TODO: cambiar a proceso de background
+			setpgid(0, groupId);
+			// setsid();
+		}
+		dup2(input, FD_STDIN);
+		if (output != NULL) {
+			close(pipeline[0]);
+			dup2(pipeline[1], FD_STDOUT);
+		}
+		execvp(command.filename, command.argv);
 		// Si alguno de los mandatos a ejecutar no existe, 
 		// el programa debe mostrar el error 
 		// “mandato: No se encuentra el mandato”.
 		if ((errno & (EACCES | EIO | EISDIR | ELIBBAD | ENOENT | ENOEXEC | ENOTDIR)) != 0) {
 			printf(ERR_COMMAND);
 		}
-		exit(status);
+		exit(EXIT_FAILURE);
 	}
 	else {
-		return pid;
-	}
-}
-
-/* cerrar todos los descriptores y liberar la memoria */
-void close_fds(tpipeline pipeline) {
-	for (int i = 0; i < pipeline.n; i++) {
-		// no cierre stdin, stdout, stderr
-		if (pipeline.fds[i] > 2) {
-			close(pipeline.fds[i]);
+		if (output != NULL) {
+			close(pipeline[1]);
+			*output = pipeline[0];
 		}
 	}
-	// liberar la memoria
-	free(pipeline.fds);
-}
-
-tpipeline create_fds(tline * line) {
-	// initializa el espacio
-	tpipeline pipeline = {
-		.n = (line->ncommands) + 2,
-		.fds = calloc((line->ncommands) + 2, sizeof(int))
-	};
-
-	// la primera entra es line->redirect_input o por defecto stdin
-	if (line->redirect_input == NULL) {
-		pipeline.fds[0] = dup(FD_STDIN);
-	}
-	else {
-		pipeline.fds[0] = open(line->redirect_input, O_RDONLY);
-	}
-	// comprueba que no ha habido errores
-	if (pipeline.fds[0] < 0) {
-		printf(ERR_FILE(line->redirect_input));
-		close_fds(pipeline);
-		exit(errno);
-	}
-
-	// la ultima salida es line->redirect_output o por defecto stdout
-	if (line->redirect_output == NULL) {
-		pipeline.fds[line->ncommands] = dup(FD_STDOUT);
-	}
-	else {
-		// redireccciona la salida
-		pipeline.fds[line->ncommands] = open(line->redirect_output, O_WRONLY | O_CREAT, 0666);
-	}
-	// comprueba que no ha habido errores
-	if (pipeline.fds[line->ncommands] < 0) {
-		printf(ERR_FILE(line->redirect_output));
-		close_fds(pipeline);
-		exit(errno);
-	}
-
-	// la salida de error es line->redirect_error o por defecto stderr
-	if (line->redirect_error == NULL) {
-		pipeline.fds[line->ncommands + 1] = dup(FD_STDERR);
-	}
-	else {
-		// redirecciona la salida de error
-		pipeline.fds[line->ncommands + 1] = open(line->redirect_error, O_WRONLY | O_APPEND | O_CREAT, 0666);
-	}
-	// comprueba que no ha habido errores
-	if (pipeline.fds[line->ncommands + 1] < 0) {
-		printf(ERR_FILE(line->redirect_error));
-		close_fds(pipeline);
-		exit(errno);
-	}
-
-	for (int i = 1; i < line->ncommands; i++) {
-		pipeline.fds[i] = fileno(tmpfile());
-	}
-
-	return pipeline;
-}
-
-void pipe(int i, tpipeline pipeline) {
-	fsync(pipeline.fds[i]);
-	lseek(pipeline.fds[i], 0, SEEK_SET);
-	dup2(pipeline.fds[i], FD_STDIN);
-	dup2(pipeline.fds[i + 1], FD_STDOUT);
-	dup2(pipeline.fds[pipeline.n - 1], FD_STDERR);
+	return pid;
 }
 
 /* ejecutar mandato interno de shell */
@@ -277,101 +220,129 @@ int inlinecommand(tline * line) {
 
 int execline(tline * line) {
 	int status = 0;
+	int input;
+	int output;
+	int i;
 	check_bg_task();
-	if (inlinecommand(line) == 0) {
-		return 0;
-	}
 	// comprobar el argumentos
 	if (line != NULL) {
+		if (inlinecommand(line) == 0) {
+			return 0;
+		}
 		if (line->ncommands > 0) {
-			current = fork();
-			pid_t program;
-			if (current == 0) {
-				tpipeline pipeline = create_fds(line);
-				// ejecutamos hasta ultimo comando
-				for (int i = 0; i < line->ncommands; i++) {
-					pipe(i, pipeline);
-					program = execute(line->commands[i]);
-					debug_wait(program, &status, 0);
-					// early exit if failing
-					if (status != 0) {
-						break;
-					}
+			groupId++;
+			if (line->redirect_output != NULL) {
+				dup2(line->redirect_output, FD_STDOUT);
+			}
+			if (line->redirect_error != NULL) {
+				dup2(line->redirect_error, FD_STDERR);
+			}
+			input = line->redirect_input || FD_STDIN;
+			for (i = 0; i < line->ncommands - 1; i++) {
+				current = execute(line->commands[i], input, &output, groupId);
+#ifdef DEBUG
+				fprintf(stdout, "create new process %d for %s\n", current, line->commands[i].filename);
+#endif // DEBUG
+
+				input = output;
+			}
+			current = execute(line->commands[i], input, NULL, groupId);
+
+			/* recuperar stdout y stderr */
+			if (line->redirect_output != NULL) {
+				dup2(fd_stdout, FD_STDOUT);
+			}
+			if (line->redirect_error != NULL) {
+				dup2(fd_stderr, FD_STDERR);
+			}
+
+			if (line->background) {
+#ifdef DEBUG
+				fprintf(stdout, "Ejecutamos la tarea %d en el segundo plano\n", current);
+#endif 
+				if (bg(current, line) < 0) {
+#ifdef DEBUG
+					fprintf(stderr, "Ha llegado al maximo numero %d de tareas\n", MAX_BGTASK);
+#endif 
+					exit(EXIT_FAILURE);
 				}
-				close_fds(pipeline);
-				// para que no vuelva a programa principal en subprocess
-				exit(status);
 			}
 			else {
-				if (line->background) {
-#ifdef DEBUG
-					fprintf(stdout, "Ejecutamos la tarea en el segundo plano\n");
-#endif 
-					if (bg(current, line) < 0) {
-#ifdef DEBUG
-						fprintf(stderr, "Ha llegado al maximo numero de tareas\n");
-#endif 
-						exit(EXIT_FAILURE);
-					}
-				}
-				else {
-					// esperar a que termine
-					debug_wait(current, &status, 0);
-				}
-				current = 0;
+				// esperar a que termine
+				debug_wait(current, &status, NULL);
 			}
+			current = 0;
 		}
 	}
 	// termina devolviendo el estado
 	return status;
 }
 
-void redirect_signal(int signum) {
+void wait_child(int signum) {
+	int status;
+	pid_t pid;
 #ifdef DEBUG
-	fprintf(stdout, "process %d received signal %d\n", getpid(), signum);
-#endif
-	if (current != 0) {
-		kill(current, signum);
-#ifdef DEBUG
-		fprintf(stderr, "sent signal %d to current process %d\n", signum, current);
-#endif
+	fprintf(stdout, "there is a child died\n");
+#endif // DEBUG
+	while (TRUE) {
+		pid = debug_wait(-1, &status, WNOHANG);
+		if (pid == 0) break;
+		else if (pid == -1) break;
 	}
-	else {
+	if (signal(SIGCHLD, wait_child) == SIG_ERR)
+	{
 #ifdef DEBUG
-		fprintf(stderr, "try to registering signal handler SIGINT\n");
+		fprintf(stderr, "register signal SIGCHILD handler failed\n");
 #endif
-		if (signal(SIGINT, redirect_signal) == SIG_ERR)
-		{
-#ifdef DEBUG
-			fprintf(stderr, "register signal handler SIGINT failed\n");
-#endif
-			exit(EXIT_FAILURE);
-		}
+		exit(EXIT_FAILURE);
 	}
 }
 
+/* tarea de preparacion */
 void init() {
-	if (signal(SIGINT, redirect_signal) == SIG_ERR)
+	if (signal(SIGINT, SIG_IGN) == SIG_ERR)
 	{
 #ifdef DEBUG
-		fprintf(stderr, "register signal handler SIGINT failed\n");
+		fprintf(stderr, "ignorar signal SIGINT failed\n");
 #endif
 		exit(EXIT_FAILURE);
 	}
-	if (signal(SIGQUIT, redirect_signal) == SIG_ERR)
+	if (signal(SIGQUIT, SIG_IGN) == SIG_ERR)
 	{
 #ifdef DEBUG
-		fprintf(stderr, "register signal handler SIGQUIT failed\n");
+		fprintf(stderr, "ignorar signal SIGQUIT failed\n");
 #endif
 		exit(EXIT_FAILURE);
 	}
-	memset(background, 0, MAX_BGTASK * sizeof(Task *));
+	if (signal(SIGCHLD, wait_child) == SIG_ERR)
+	{
+#ifdef DEBUG
+		fprintf(stderr, "register signal SIGCHILD handler failed\n");
+#endif
+		exit(EXIT_FAILURE);
+	}
+	// hacer backup de stdout y stderr
+#ifdef DEBUG
+	fprintf(stdout, "realizando backup de stdout y stderr\n");
+#endif // DEBUG
+	fd_stdout = dup(FD_STDOUT);
+	fd_stderr = dup(FD_STDERR);
+#ifdef DEBUG
+	fprintf(stdout, "inicializando memoria de JobInfo\n");
+#endif // DEBUG
+	memset(background, 0, MAX_BGTASK * sizeof(JobInfo *));
 }
 
+/* Liberar la memoria de los contenidos de jobs */
 void destroy() {
 	for (int i = 0; i < MAX_BGTASK; i++) {
 		if (background[i] != NULL) {
-			free(background[i]->info);
+#ifdef DEBUG
+			fprintf(stdout, "liberando memoria asosiada a %d\n", background[i]->pid);
+#endif
+			if (background[i]->info != NULL) {
+				free(background[i]->info);
+			}
 			free(background[i]);
 		}
 	}

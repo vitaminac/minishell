@@ -17,16 +17,12 @@
 #define FD_STDERR 2
 #define ERR_FILE(FILE) "fichero %s: Error %d. Descripcion del error\n", FILE, errno
 #define ERR_COMMAND "mandato: No se encuentra el mandato\n"
-
-typedef struct {
-	int n;
-	int * fds;
-} tpipeline;
+#define TRUE 1
 
 typedef struct {
 	pid_t pid;
 	char * info;
-} Task;
+} JobInfo;
 
 // Mostrar en pantalla un prompt (los símbolos msh> seguidos de un espacio).
 void prompt();
