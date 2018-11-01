@@ -1,19 +1,24 @@
 #include "shell.h"
 
-// TODO: fix signal kill background process
-// TODO: close previous command
-
+/*
+   TODO: fix signal kill background process
+   TODO: close previous command
+   TODO: check if we have correctly close the file return zero
+   TODO: destroy
+   TODO: use static
+*/
 int main(void) {
-	// echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null
+	/* echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null */
 	char buf[BUFFER_SIZE];
 	tline * line;
+	int i, j;
 
 	init();
 
 	prompt();
 	while (1) {
 		if (fgets(buf, BUFFER_SIZE, stdin) > 0) {
-			// Leer una linea del taclado
+			/* Leer una linea del taclado */
 			line = tokenize(buf);
 			if (line == NULL) {
 				continue;
@@ -32,9 +37,9 @@ int main(void) {
 			if (line->background) {
 				printf("comando a ejecutarse en background\n");
 			}
-			for (int i = 0; i < line->ncommands; i++) {
+			for (i = 0; i < line->ncommands; i++) {
 				printf("orden %d (%s):\n", i, line->commands[i].filename);
-				for (int j = 0; j < line->commands[i].argc; j++) {
+				for (j = 0; j < line->commands[i].argc; j++) {
 					printf("  argumento %d: %s\n", j, line->commands[i].argv[j]);
 				}
 			}

@@ -1,30 +1,30 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <memory.h>
 #include <errno.h>
-#include <sys/types.h>
+#include <string.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <termio.h>
+#include <unistd.h>
+#include <sys/types.h>
 #include <sys/wait.h>
-#include <memory.h>
 
 #include "parser.h"
 
 #define DEBUG
 #define BUFFER_SIZE 4096
-#define MAX_BGTASK 32
-#define FD_STDIN 0
-#define FD_STDOUT 1
-#define FD_STDERR 2
 #define ERR_FILE(FILE) "fichero %s: Error %d. Descripcion del error\n", FILE, errno
 #define ERR_COMMAND "mandato: No se encuentra el mandato\n"
-#define TRUE 1
 
-typedef struct {
+typedef struct JobInfo {
 	pid_t pid;
 	char * info;
+	struct JobInfo * next;
 } JobInfo;
 
-// Mostrar en pantalla un prompt (los símbolos msh> seguidos de un espacio).
+/* Mostrar en pantalla un prompt (los símbolos msh> seguidos de un espacio). */
 void prompt();
 
 /* Ejecutar todos los mandatos de la línea a la vez creando varios procesos hijo
@@ -33,7 +33,7 @@ void prompt();
    En caso de que no se ejecute en background,
    se espera a que todos los mandatos hayan finalizado
    para volver a mostrar el prompt y repetir el proceso. */
-int execline(tline * line);
+void execline(tline * line);
 
 void init();
 void destroy();
