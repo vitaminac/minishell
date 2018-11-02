@@ -301,7 +301,7 @@ void execline(tline * line) {
 			}
 			else {
 				input = open(line->redirect_input, O_RDONLY);
-				if (errno) {
+				if (input < 0) {
 #ifdef DEBUG
 					fprintf(stderr, "fallo en redireccionar la entrada %s\n", strerror(errno));
 #endif
@@ -313,7 +313,7 @@ void execline(tline * line) {
 			}
 			else {
 				error = open(line->redirect_error, O_WRONLY | O_CREAT | O_TRUNC);
-				if (errno) {
+				if (error < 0) {
 #ifdef DEBUG
 					fprintf(stderr, "fallo en redireccionar la salida de error %s\n", strerror(errno));
 #endif
@@ -336,6 +336,12 @@ void execline(tline * line) {
 					}
 					else {
 						output = open(line->redirect_output, O_WRONLY | O_CREAT | O_TRUNC);
+						if (output < 0) {
+#ifdef DEBUG
+							fprintf(stderr, "fallo en redireccionar la salida de standard %s\n", strerror(errno));
+#endif
+							exit(EXIT_FAILURE);
+						}
 					}
 				}
 				current = fork();
