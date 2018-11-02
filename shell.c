@@ -21,13 +21,11 @@ bool debug_wait(pid_t pid, int options) {
 #ifdef DEBUG
 					fprintf(stdout, "task %d exited with status code %d\n", result, WEXITSTATUS(status));
 #endif
-					return true;
 				}
 				else if (WIFSIGNALED(status)) {
 #ifdef DEBUG
 					fprintf(stdout, "task %d was terminated by signal %d \n", result, WTERMSIG(status));
 #endif
-					return true;
 				}
 				else if (WIFSTOPPED(status)) {
 #ifdef DEBUG
@@ -381,7 +379,7 @@ void execline(tline * line) {
 			}
 			else {
 				/* esperar a que termine */
-				debug_wait(current, 0);
+				debug_wait(-pgid, 0);
 				/* vuelve a capturar el control de terminal*/
 				tcsetpgrp(STDIN_FILENO, getpid());
 			}
