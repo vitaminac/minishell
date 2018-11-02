@@ -423,13 +423,13 @@ void init() {
 #endif
 		exit(EXIT_FAILURE);
 	}
-	if (signal(SIGCHLD, SIG_IGN) == SIG_ERR)
+	/*if (signal(SIGCHLD, SIG_IGN) == SIG_ERR)
 	{
 #ifdef DEBUG
 		fprintf(stderr, "ignorar signal SIGCHILD handler failed\n");
 #endif
 		exit(EXIT_FAILURE);
-	}
+	}*/
 	pid_t shell_pgid = getpid();
 	if (setpgid(shell_pgid, shell_pgid) < 0) {
 #ifdef DEBUG
