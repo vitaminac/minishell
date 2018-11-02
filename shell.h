@@ -2,11 +2,10 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <memory.h>
-#include <errno.h>
 #include <string.h>
-#include <fcntl.h>
+#include <errno.h>
 #include <signal.h>
-#include <termio.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -15,7 +14,7 @@
 
 #define DEBUG
 #define BUFFER_SIZE 4096
-#define ERR_FILE(FILE) "fichero %s: Error %d. Descripcion del error\n", FILE, errno
+#define ERR_FILE(FILE) "fichero %s: Error %s. Descripcion del error\n", FILE, strerror(errno)
 #define ERR_COMMAND "mandato: No se encuentra el mandato\n"
 
 typedef struct JobInfo {
@@ -35,5 +34,8 @@ void prompt();
    para volver a mostrar el prompt y repetir el proceso. */
 void execline(tline * line);
 
+/* initialization */
 void init();
+
+/* deinitialization */
 void destroy();

@@ -1,13 +1,9 @@
 #include "shell.h"
 
 /*
-   TODO: fix signal kill background process
-   TODO: close previous command
    TODO: check if we have correctly close the file return zero
-   TODO: destroy
-   TODO: use static
 */
-int main(void) {
+int main(int argc, char * argv[]) {
 	/* echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null */
 	char buf[BUFFER_SIZE];
 	tline * line;
@@ -16,7 +12,7 @@ int main(void) {
 	init();
 
 	prompt();
-	while (1) {
+	while (true) {
 		if (fgets(buf, BUFFER_SIZE, stdin) > 0) {
 			/* Leer una linea del taclado */
 			line = tokenize(buf);
@@ -44,7 +40,6 @@ int main(void) {
 				}
 			}
 #endif
-
 			execline(line);
 			prompt();
 		}

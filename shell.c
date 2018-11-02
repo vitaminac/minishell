@@ -114,55 +114,48 @@ void bg(pid_t pid, JobInfo * job_list) {
 	}
 }
 
-/* comprobar que si hay tarea terminada en el segundo plano */
-void check_bg_task(JobInfo ** job_list_ptr) {
-	JobInfo * prev = NULL;
-	while (*job_list_ptr != NULL && prev == NULL) {
-		if (debug_wait((*job_list_ptr)->pid, WNOHANG)) {
-			prev = (*job_list_ptr)->next;
-			free((*job_list_ptr)->info);
-			free(*job_list_ptr);
-			*job_list_ptr = prev;
-			prev = NULL;
-		}
-		else {
-			prev = *job_list_ptr;
-			*job_list_ptr = prev->next;
-		}
-	}
-	while (*job_list_ptr != NULL) {
-		if (debug_wait((*job_list_ptr)->pid, WNOHANG)) {
-			prev->next = (*job_list_ptr)->next;
-			free((*job_list_ptr)->info);
-			free(*job_list_ptr);
-			*job_list_ptr = prev->next;
-		}
-	}
-}
-
-void fg(int id, JobInfo * job) {
+void fg(int id, JobInfo * job_list) {
 	int i = 0;
 	pid_t current;
 	/* comprueba que esta ejecutando en backgroud */
-	while (i < id && job != NULL) {
-		job = job->next;
+	while (i < id && job_list != NULL) {
+		job_list = job_list->next;
 		i++;
 	}
-	if (job != NULL) {
-		current = job->pid;
-		free(job->info);
-		free(job);
+	if (i == id && job_list != NULL) {
+		current = job_list->pid;
+		free(job_list->info);
+		free(job_list);
 		debug_wait(current, 0);
-		current = 0;
 	}
 }
 
-void jobs(JobInfo * job_list) {
+/* comprobar que si hay tarea terminada en el segundo plano y muestra los que no han terminado*/
+void jobs(JobInfo ** job_list_ptr) {
 	int i = 0;
-	while (job_list != NULL) {
-		printf("[%d]+ Running \t %s\n", i, job_list->info);
-		job_list = job_list->next;
-		i += 1;
+	JobInfo * current = NULL;
+	while (*job_list_ptr != NULL && current == NULL) {
+		if (debug_wait((*job_list_ptr)->pid, WNOHANG)) {
+			current = (*job_list_ptr)->next;
+			free((*job_list_ptr)->info);
+			free(*job_list_ptr);
+			*job_list_ptr = current;
+			current = NULL;
+		}
+		else {
+			current = *job_list_ptr;
+		}
+	}
+	while (current != NULL) {
+		current = (*job_list_ptr)->next;
+		if (debug_wait((*job_list_ptr)->pid, WNOHANG)) {
+			free((*job_list_ptr)->info);
+			free(*job_list_ptr);
+		}
+		else {
+			printf("[%d]+ Running \t %s\n", i, current->info);
+			i += 1;
+		}
 	}
 }
 #pragma endregion
@@ -260,7 +253,6 @@ void execute(const tcommand * command, int pgid,
 /* ejecutar mandato interno de shell */
 bool inlinecommand(tline * line) {
 	if (line->ncommands == 1) {
-		check_bg_task(&job_list);
 		if (strcmp("cd", line->commands[0].argv[0]) == 0) {
 			if (line->commands->argc > 1) {
 				chdir(line->commands[0].argv[1]);
@@ -292,11 +284,12 @@ bool inlinecommand(tline * line) {
 }
 
 void execline(tline * line) {
+	static pid_t current;
+
 	int i;
 	int input, output, error;
 	int pipeline[2];
 	int pgid = 0;
-	static pid_t current;
 	/* comprobar el argumentos */
 	if (line != NULL) {
 		if (inlinecommand(line)) {
@@ -331,7 +324,7 @@ void execline(tline * line) {
 				if (i < line->ncommands - 1) {
 					if (pipe(pipeline) < 0) {
 #ifdef DEBUG
-						fprintf(stderr, "fallo en establecer pipeline\n");
+						fprintf(stderr, "fallo en establecer pipeline %s\n", strerror(errno));
 #endif
 						exit(EXIT_FAILURE);
 					}
@@ -360,6 +353,7 @@ void execline(tline * line) {
 				else {
 					fprintf(stderr, "fallo al ejecutar el comando\n");
 				}
+#endif
 				if (input != STDIN_FILENO) {
 					close(input);
 				}
@@ -367,7 +361,6 @@ void execline(tline * line) {
 					close(output);
 				}
 				input = pipeline[0];
-#endif
 			}
 
 			if (error != STDERR_FILENO) {
@@ -392,7 +385,7 @@ void execline(tline * line) {
 }
 #pragma endregion
 
-#pragma region Initialization and Deinitialization
+#pragma region initialization and deinitialization
 /* tarea de preparacion */
 void init() {
 	if (signal(SIGINT, SIG_IGN) == SIG_ERR)
