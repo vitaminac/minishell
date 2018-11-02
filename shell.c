@@ -441,6 +441,7 @@ void init() {
 	fprintf(stdout, "capturamos el control de terminal\n");
 #endif
 	tcsetpgrp(STDIN_FILENO, shell_pgid);
+	umask(DEFAULT_FILE_CREATE_MODE);
 }
 
 /* Liberar la memoria de los contenidos de jobs */

@@ -16,6 +16,7 @@
 #define BUFFER_SIZE 4096
 #define ERR_FILE(FILE) "fichero %s: Error %s. Descripcion del error\n", FILE, strerror(errno)
 #define ERR_COMMAND "mandato: No se encuentra el mandato\n"
+#define DEFAULT_FILE_CREATE_MODE 0666
 
 typedef struct JobInfo {
 	pid_t pid;
