@@ -2,6 +2,7 @@
 
 /*
    TODO: check if we have correctly close the file return zero
+   TODO: open entrada.txt failed
 */
 int main(int argc, char * argv[]) {
 	/* echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null */

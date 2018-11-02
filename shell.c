@@ -303,7 +303,7 @@ void execline(tline * line) {
 				input = open(line->redirect_input, O_RDONLY);
 				if (errno) {
 #ifdef DEBUG
-					fprintf(stderr, "fallo en redireccionar la entrada%s", strerror(errno));
+					fprintf(stderr, "fallo en redireccionar la entrada %s\n", strerror(errno));
 #endif
 					exit(EXIT_FAILURE);
 				}
