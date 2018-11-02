@@ -216,13 +216,13 @@ void execute(const tcommand * command, int pgid,
 #endif
 		exit(EXIT_FAILURE);
 	}
-	if (signal(SIGCHLD, SIG_DFL) == SIG_ERR)
+	/*if (signal(SIGCHLD, SIG_DFL) == SIG_ERR)
 	{
 #ifdef DEBUG
 		fprintf(stderr, "recuperar signal SIGCHILD handler failed\n");
 #endif
 		exit(EXIT_FAILURE);
-	}
+	}*/
 
 	/* connectar a los pipes */
 	if (input != STDIN_FILENO) {
