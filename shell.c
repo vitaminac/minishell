@@ -1,5 +1,7 @@
 #include "shell.h"
 
+pid_t shell_pgid;
+
 pid_t debug_wait(pid_t pid, int options) {
 	pid_t result;
 	int status;
@@ -110,7 +112,7 @@ char * new_job_info(tline * line) {
 
 JobInfo * new_job(pid_t pid, tline * line) {
 	JobInfo * job = (JobInfo *)malloc(sizeof(JobInfo *));
-	job->pid = pid;
+	job->pgid = pid;
 	job->info = new_job_info(line);
 	job->next = NULL;
 	return job;
@@ -118,7 +120,7 @@ JobInfo * new_job(pid_t pid, tline * line) {
 
 void bg(pid_t pid, JobInfo * job_list) {
 	while (job_list != NULL) {
-		if (job_list->pid == pid) {
+		if (job_list->pgid == pid) {
 			debug_wait(pid, 0);
 			return;
 		}
@@ -127,7 +129,7 @@ void bg(pid_t pid, JobInfo * job_list) {
 }
 
 void fg(int id, JobInfo * job_list) {
-	int i = 0;
+	int i = 1;
 	pid_t current;
 	/* comprueba que esta ejecutando en backgroud */
 	while (i < id && job_list != NULL) {
@@ -135,10 +137,12 @@ void fg(int id, JobInfo * job_list) {
 		i++;
 	}
 	if (i == id && job_list != NULL) {
-		current = job_list->pid;
+		current = job_list->pgid;
 		free(job_list->info);
 		free(job_list);
+		tcsetpgrp(STDIN_FILENO, current);
 		debug_wait(current, 0);
+		tcsetpgrp(STDIN_FILENO, shell_pgid);
 	}
 }
 
@@ -149,7 +153,7 @@ void jobs(JobInfo ** job_list_ptr) {
 	JobInfo * next = NULL;
 	if (job_list_ptr != NULL) {
 		while (*job_list_ptr != NULL && current == NULL) {
-			if (debug_wait((*job_list_ptr)->pid, WNOHANG) != 0) {
+			if (debug_wait((*job_list_ptr)->pgid, WNOHANG) != 0) {
 				current = (*job_list_ptr)->next;
 				free((*job_list_ptr)->info);
 				free(*job_list_ptr);
@@ -164,7 +168,7 @@ void jobs(JobInfo ** job_list_ptr) {
 			current = *job_list_ptr;
 			while (current != NULL) {
 				next = current->next;
-				if (debug_wait(current->pid, WNOHANG) != 0) {
+				if (debug_wait(current->pgid, WNOHANG) != 0) {
 					free((current)->info);
 					free(current);
 				}
@@ -410,7 +414,7 @@ void execline(tline * line) {
 				/* esperar a que termine */
 				debug_wait(-pgid, 0);
 				/* vuelve a capturar el control de terminal*/
-				tcsetpgrp(STDIN_FILENO, getpid());
+				tcsetpgrp(STDIN_FILENO, shell_pgid);
 			}
 			current = 0;
 		}
@@ -463,7 +467,7 @@ void init() {
 #endif
 		exit(EXIT_FAILURE);
 	}
-	pid_t shell_pgid = getpid();
+	shell_pgid = getpid();
 	if (setpgid(shell_pgid, shell_pgid) < 0) {
 #ifdef DEBUG
 		fprintf(stderr, "no podemos crear nuestro propio grupo\n");
@@ -482,7 +486,7 @@ void destroy() {
 	while (job_list != NULL) {
 		next = job_list->next;
 #ifdef DEBUG
-		fprintf(stdout, "liberando memoria asosiada a %d\n", job_list->pid);
+		fprintf(stdout, "liberando memoria asosiada a %d\n", job_list->pgid);
 #endif
 		if (job_list->info != NULL) {
 			free(job_list->info);
