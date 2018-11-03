@@ -1,6 +1,6 @@
 #include "shell.h"
 
-bool debug_wait(pid_t pid, int options) {
+pid_t debug_wait(pid_t pid, int options) {
 	pid_t result;
 	int status;
 	options |= WUNTRACED;
@@ -12,7 +12,7 @@ bool debug_wait(pid_t pid, int options) {
 		if (result == 0) {
 #ifdef DEBUG
 			fprintf(stdout, "child process %d's state haven't changed yet\n", pid);
-			return false;
+			return result;
 #endif
 		}
 		else {
@@ -48,7 +48,7 @@ bool debug_wait(pid_t pid, int options) {
 				else {
 					fprintf(stderr, "Unknown error\n");
 				}
-				return false;
+				return result;
 			}
 #endif 
 		}
@@ -132,27 +132,34 @@ void fg(int id, JobInfo * job_list) {
 void jobs(JobInfo ** job_list_ptr) {
 	int i = 0;
 	JobInfo * current = NULL;
-	while (*job_list_ptr != NULL && current == NULL) {
-		if (debug_wait((*job_list_ptr)->pid, WNOHANG)) {
+	JobInfo * next = NULL;
+	if (job_list_ptr != NULL) {
+		while (*job_list_ptr != NULL && current == NULL) {
+			if (debug_wait((*job_list_ptr)->pid, WNOHANG) != 0) {
+				current = (*job_list_ptr)->next;
+				free((*job_list_ptr)->info);
+				free(*job_list_ptr);
+				*job_list_ptr = current;
+				current = NULL;
+			}
+			else {
+				current = *job_list_ptr;
+			}
+		}
+		if (*job_list_ptr != NULL) {
 			current = (*job_list_ptr)->next;
-			free((*job_list_ptr)->info);
-			free(*job_list_ptr);
-			*job_list_ptr = current;
-			current = NULL;
-		}
-		else {
-			current = *job_list_ptr;
-		}
-	}
-	while (current != NULL) {
-		current = (*job_list_ptr)->next;
-		if (debug_wait((*job_list_ptr)->pid, WNOHANG)) {
-			free((*job_list_ptr)->info);
-			free(*job_list_ptr);
-		}
-		else {
-			printf("[%d]+ Running \t %s\n", i, current->info);
-			i += 1;
+			while (current != NULL) {
+				next = current->next;
+				if (debug_wait(current->pid, WNOHANG) != 0) {
+					free((current)->info);
+					free(current);
+				}
+				else {
+					printf("[%d]+ Running \t %s\n", i, current->info);
+					i += 1;
+				}
+				current = next;
+			}
 		}
 	}
 }
@@ -272,7 +279,10 @@ bool inlinecommand(tline * line) {
 			exit(EXIT_SUCCESS);
 		}
 		else if (strcmp("jobs", line->commands[0].argv[0]) == 0) {
-			jobs(job_list);
+#ifdef DEBUG
+			fprintf(stdout, "list the jobs\n");
+#endif
+			jobs(&job_list);
 			return true;
 		}
 		else if (strcmp("fg", line->commands[0].argv[0]) == 0) {
