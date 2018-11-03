@@ -128,21 +128,25 @@ void bg(pid_t pid, JobInfo * job_list) {
 	}
 }
 
-void fg(int id, JobInfo * job_list) {
+void fg(int id, JobInfo ** job_list_ptr) {
 	int i = 1;
-	pid_t current;
-	/* comprueba que esta ejecutando en backgroud */
-	while (i < id && job_list != NULL) {
-		job_list = job_list->next;
-		i++;
-	}
-	if (i == id && job_list != NULL) {
-		current = job_list->pgid;
-		free(job_list->info);
-		free(job_list);
-		tcsetpgrp(STDIN_FILENO, current);
-		debug_wait(current, 0);
-		tcsetpgrp(STDIN_FILENO, shell_pgid);
+	pid_t pgid;
+	JobInfo * current;
+	if (job_list_ptr != NULL) {
+		current = *job_list_ptr;
+		/* comprueba que esta ejecutando en backgroud */
+		while (i < id && current != NULL) {
+			current = current->next;
+			i++;
+		}
+		if (i == id && current != NULL) {
+			pgid = current->pgid;
+			free(current->info);
+			free(current);
+			tcsetpgrp(STDIN_FILENO, pgid);
+			debug_wait(pgid, 0);
+			tcsetpgrp(STDIN_FILENO, shell_pgid);
+		}
 	}
 }
 
@@ -303,10 +307,10 @@ bool inlinecommand(tline * line) {
 		}
 		else if (strcmp("fg", line->commands[0].argv[0]) == 0) {
 			if (line->commands->argc > 1) {
-				fg(atoi(line->commands[0].argv[1]), job_list);
+				fg(atoi(line->commands[0].argv[1]), &job_list);
 			}
 			else {
-				fg(last_bg_job, job_list);
+				fg(last_bg_job, &job_list);
 			}
 			return true;
 		}
