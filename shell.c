@@ -62,8 +62,16 @@ pid_t debug_wait(pid_t pid, int options) {
 JobInfo * job_list = NULL;
 pid_t last_bg_job;
 JobInfo * insert_job(JobInfo * job_list, JobInfo * new_job) {
-	new_job->next = job_list;
-	return new_job;
+	if (job_list == NULL) {
+		return new_job;
+	}
+	else {
+		while (job_list->next != NULL) {
+			job_list = job_list->next;
+		}
+		job_list->next = new_job;
+		return job_list;
+	}
 }
 
 char * new_job_info(tline * line) {
@@ -94,11 +102,11 @@ char * new_job_info(tline * line) {
 	return info;
 }
 
-JobInfo * new_job(pid_t pid, tline * line, JobInfo * job_list) {
+JobInfo * new_job(pid_t pid, tline * line) {
 	JobInfo * job = (JobInfo *)malloc(sizeof(JobInfo *));
 	job->pid = pid;
 	job->info = new_job_info(line);
-	job->next = job_list;
+	job->next = NULL;
 	return job;
 }
 
@@ -147,7 +155,7 @@ void jobs(JobInfo ** job_list_ptr) {
 			}
 		}
 		if (*job_list_ptr != NULL) {
-			current = (*job_list_ptr)->next;
+			current = *job_list_ptr;
 			while (current != NULL) {
 				next = current->next;
 				if (debug_wait(current->pid, WNOHANG) != 0) {
@@ -392,7 +400,7 @@ void execline(tline * line) {
 #ifdef DEBUG
 				fprintf(stdout, "Ejecutamos la tarea %d en el segundo plano\n", current);
 #endif 
-				job_list = insert_job(job_list, new_job(current, line, job_list));
+				job_list = insert_job(job_list, new_job(current, line));
 			}
 			else {
 				/* esperar a que termine */
