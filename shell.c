@@ -61,17 +61,23 @@ pid_t debug_wait(pid_t pid, int options) {
 #pragma region Job
 JobInfo * job_list = NULL;
 pid_t last_bg_job;
-JobInfo * insert_job(JobInfo * job_list, JobInfo * new_job) {
-	if (job_list == NULL) {
-		return new_job;
+void insert_job(JobInfo ** job_list_ptr, JobInfo * new_job) {
+	int i = 1;
+	JobInfo * current = *job_list_ptr;
+	if (current== NULL) {
+		*job_list_ptr = new_job;
+		current = new_job;
 	}
 	else {
-		while (job_list->next != NULL) {
-			job_list = job_list->next;
+		current = *job_list_ptr;
+		i += 1;
+		while (current->next != NULL) {
+			current = current->next;
+			i += 1;
 		}
-		job_list->next = new_job;
-		return job_list;
+		current->next = new_job;
 	}
+	printf(JOBINFO, i, current->info);
 }
 
 char * new_job_info(tline * line) {
@@ -163,8 +169,8 @@ void jobs(JobInfo ** job_list_ptr) {
 					free(current);
 				}
 				else {
-					printf("[%d]+ Running \t %s\n", i, current->info);
 					i += 1;
+					printf(JOBINFO, i, current->info);
 				}
 				current = next;
 			}
@@ -258,14 +264,12 @@ void execute(const tcommand * command, int pgid,
 		close(error);
 	}
 
-	execvp(command->filename, command->argv);
+	execvp(command->argv[0], command->argv);
 	/* Si alguno de los mandatos a ejecutar no existe,
 	   el programa debe mostrar el error
 	   “mandato: No se encuentra el mandato”.
 	*/
-	if ((errno & (EACCES | EIO | EISDIR | ELIBBAD | ENOENT | ENOEXEC | ENOTDIR)) != 0) {
-		printf(ERR_COMMAND);
-	}
+	fprintf(stdout, ERR_COMMAND, command->argv[0], strerror(errno));
 	/* para que en el caso de error no vuelva al programa principal */
 	exit(EXIT_FAILURE);
 }
@@ -358,7 +362,7 @@ void execline(tline * line) {
 						output = STDOUT_FILENO;
 					}
 					else {
-						output = open(line->redirect_output, O_WRONLY | O_CREAT | O_TRUNC);
+						output = open(line->redirect_output, O_WRONLY | O_CREAT | O_TRUNC, DEFAULT_FILE_CREATE_MODE);
 						if (output < 0) {
 #ifdef DEBUG
 							fprintf(stderr, "fallo en redireccionar la salida de standard %s\n", strerror(errno));
@@ -400,7 +404,7 @@ void execline(tline * line) {
 #ifdef DEBUG
 				fprintf(stdout, "Ejecutamos la tarea %d en el segundo plano\n", current);
 #endif 
-				job_list = insert_job(job_list, new_job(current, line));
+				insert_job(&job_list, new_job(current, line));
 			}
 			else {
 				/* esperar a que termine */
@@ -470,7 +474,6 @@ void init() {
 	fprintf(stdout, "capturamos el control de terminal\n");
 #endif
 	tcsetpgrp(STDIN_FILENO, shell_pgid);
-	umask(DEFAULT_FILE_CREATE_MODE);
 }
 
 /* Liberar la memoria de los contenidos de jobs */
