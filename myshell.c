@@ -1,7 +1,36 @@
-#include "shell.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <memory.h>
+#include <string.h>
+#include <errno.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
+#include "parser.h"
+
+#define DEBUG
+#define BUFFER_SIZE 4096
+#define ERR_FILE(FILE) "fichero %s: Error %s. Descripcion del error\n", FILE, strerror(errno)
+#define ERR_COMMAND "mandato: No se encuentra el mandato %s %s\n"
+#define JOBINFO "[%d]+ Running \t %s &\n"
+#define DEFAULT_FILE_CREATE_MODE 0666
+
+typedef struct JobInfo {
+	pid_t pgid;
+	char * info;
+	struct JobInfo * next;
+} JobInfo;
+
+/* variables globales*/
 pid_t shell_pgid;
+JobInfo * job_list = NULL;
+pid_t last_bg_job;
 
+/* esperar al proceso pid y imprimir info de debug */
 pid_t debug_wait(pid_t pid, int options) {
 	pid_t result;
 	int status;
@@ -61,12 +90,10 @@ pid_t debug_wait(pid_t pid, int options) {
 }
 
 #pragma region Job
-JobInfo * job_list = NULL;
-pid_t last_bg_job;
 void insert_job(JobInfo ** job_list_ptr, JobInfo * new_job) {
 	int i = 1;
 	JobInfo * current = *job_list_ptr;
-	if (current== NULL) {
+	if (current == NULL) {
 		*job_list_ptr = new_job;
 		current = new_job;
 	}
@@ -109,11 +136,10 @@ char * new_job_info(tline * line) {
 	}
 	return info;
 }
-
-JobInfo * new_job(pid_t pid, tline * line) {
+JobInfo * new_job(pid_t pid, char * command) {
 	JobInfo * job = (JobInfo *)malloc(sizeof(JobInfo *));
 	job->pgid = pid;
-	job->info = new_job_info(line);
+	job->info = command;
 	job->next = NULL;
 	return job;
 }
@@ -187,9 +213,14 @@ void jobs(JobInfo ** job_list_ptr) {
 }
 #pragma endregion
 
+/* Mostrar en pantalla un prompt (los símbolos msh> seguidos de un espacio). */
 void prompt() {
+#ifdef DEBUG
 	static char cwd[BUFFER_SIZE];
 	printf("msh:>%s$", getcwd(cwd, BUFFER_SIZE));
+#else
+	printf("msh:>");
+#endif
 }
 
 #pragma region Execute
@@ -318,7 +349,13 @@ bool inlinecommand(tline * line) {
 	return false;
 }
 
-void execline(tline * line) {
+/* Ejecutar todos los mandatos de la línea a la vez creando varios procesos hijo
+   y comunicando unos con otros con las tuberías que sean necesarias,
+   y realizando las redirecciones que sean necesarias.
+   En caso de que no se ejecute en background,
+   se espera a que todos los mandatos hayan finalizado
+   para volver a mostrar el prompt y repetir el proceso. */
+void execline(tline * line, char * command) {
 	static pid_t current;
 
 	int i;
@@ -412,7 +449,7 @@ void execline(tline * line) {
 #ifdef DEBUG
 				fprintf(stdout, "Ejecutamos la tarea %d en el segundo plano\n", current);
 #endif 
-				insert_job(&job_list, new_job(current, line));
+				insert_job(&job_list, new_job(current, command));
 			}
 			else {
 				/* esperar a que termine */
@@ -427,7 +464,7 @@ void execline(tline * line) {
 #pragma endregion
 
 #pragma region initialization and deinitialization
-/* tarea de preparacion */
+/* initialization, tarea de preparacion */
 void init() {
 	if (signal(SIGINT, SIG_IGN) == SIG_ERR)
 	{
@@ -484,7 +521,7 @@ void init() {
 	tcsetpgrp(STDIN_FILENO, shell_pgid);
 }
 
-/* Liberar la memoria de los contenidos de jobs */
+/* deinitialization Liberar la memoria de los contenidos de jobs */
 void destroy() {
 	JobInfo * next;
 	while (job_list != NULL) {
@@ -501,3 +538,53 @@ void destroy() {
 
 }
 #pragma endregion
+
+/*
+   TODO: check if we have correctly close the file return zero
+   TODO: open entrada.txt failed
+*/
+int main(int argc, char * argv[]) {
+	/* echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null */
+	char buf[BUFFER_SIZE];
+	tline * line;
+	int i, j;
+
+	init();
+
+	prompt();
+	while (true) {
+		if (fgets(buf, BUFFER_SIZE, stdin) > 0) {
+			/* Leer una linea del taclado */
+			line = tokenize(buf);
+			if (line == NULL) {
+				continue;
+			}
+
+#ifdef DEBUG
+			if (line->redirect_input != NULL) {
+				printf("redirección de entrada: %s\n", line->redirect_input);
+			}
+			if (line->redirect_output != NULL) {
+				printf("redirección de salida: %s\n", line->redirect_output);
+			}
+			if (line->redirect_error != NULL) {
+				printf("redirección de error: %s\n", line->redirect_error);
+			}
+			if (line->background) {
+				printf("comando a ejecutarse en background\n");
+			}
+			for (i = 0; i < line->ncommands; i++) {
+				printf("orden %d (%s):\n", i, line->commands[i].filename);
+				for (j = 0; j < line->commands[i].argc; j++) {
+					printf("  argumento %d: %s\n", j, line->commands[i].argv[j]);
+				}
+			}
+#endif
+			execline(line, buf);
+			prompt();
+		}
+	}
+
+	destroy();
+	return 0;
+}
