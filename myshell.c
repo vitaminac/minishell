@@ -109,33 +109,6 @@ void insert_job(JobInfo ** job_list_ptr, JobInfo * new_job) {
 	printf(JOBINFO, i, current->info);
 }
 
-char * new_job_info(tline * line) {
-	size_t old_length = 0;
-	size_t new_length;
-	char * info = malloc(2 * sizeof(char));
-	info[0] = ' ';
-	info[1] = '\0';
-	tcommand command;
-	int i, j;
-	for (i = 0; i < line->ncommands; i++) {
-		command = line->commands[i];
-		for (j = 0; j < command.argc; j++) {
-			new_length = old_length + strlen(command.argv[j]) + 1;
-			info = realloc(info, new_length * sizeof(char));
-			strcpy(info + old_length + 1, command.argv[j]);
-			if (j == 0) {
-				if (old_length != 0) {
-					info[old_length] = '|';
-				}
-			}
-			else {
-				info[old_length] = ' ';
-			}
-			old_length = new_length;
-		}
-	}
-	return info;
-}
 JobInfo * new_job(pid_t pid, char * command) {
 	JobInfo * job = (JobInfo *)malloc(sizeof(JobInfo *));
 	job->pgid = pid;
@@ -449,7 +422,7 @@ void execline(tline * line, char * command) {
 #ifdef DEBUG
 				fprintf(stdout, "Ejecutamos la tarea %d en el segundo plano\n", current);
 #endif 
-				insert_job(&job_list, new_job(current, command));
+				insert_job(&job_list, new_job(current, strdup(command)));
 			}
 			else {
 				/* esperar a que termine */
