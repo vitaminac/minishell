@@ -541,7 +541,6 @@ void destroy() {
 
 /*
    TODO: check if we have correctly close the file return zero
-   TODO: open entrada.txt failed
 */
 int main(int argc, char * argv[]) {
 	/* echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null */
@@ -551,8 +550,8 @@ int main(int argc, char * argv[]) {
 
 	init();
 
-	prompt();
-	while (true) {
+	do {
+		prompt();
 		if (fgets(buf, BUFFER_SIZE, stdin) > 0) {
 			/* Leer una linea del taclado */
 			line = tokenize(buf);
@@ -583,8 +582,9 @@ int main(int argc, char * argv[]) {
 			execline(line, buf);
 			prompt();
 		}
-	}
+	} while (true);
 
+	/* liberar los recursos */
 	destroy();
 	return 0;
 }
