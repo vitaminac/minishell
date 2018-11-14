@@ -514,6 +514,7 @@ void destroy() {
 
 /*
    TODO: check if we have correctly close the file return zero
+   mejorar el paso de string * command
 */
 int main(int argc, char * argv[]) {
 	/* echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null */
