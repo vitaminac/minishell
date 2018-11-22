@@ -12,7 +12,7 @@
 
 #include "parser.h"
 
-#define DEBUG
+/*#define DEBUG*/
 #define BUFFER_SIZE 4096
 #define ERR_FILE(FILE) "fichero %s: Error %s. Descripcion del error\n", FILE, strerror(errno)
 #define ERR_COMMAND "mandato: No se encuentra el mandato %s %s\n"
@@ -43,8 +43,8 @@ pid_t debug_wait(pid_t pid, int options) {
 		if (result == 0) {
 #ifdef DEBUG
 			fprintf(stdout, "child process %d's state haven't changed yet\n", pid);
-			return result;
 #endif
+			return result;
 		}
 		else {
 			if (result > 0) {
@@ -64,8 +64,8 @@ pid_t debug_wait(pid_t pid, int options) {
 #endif
 				}
 			}
-#ifdef DEBUG
 			else {
+#ifdef DEBUG
 				fprintf(stderr, "wait pid %d failed\n", pid);
 				if (errno == ECHILD) {
 					fprintf(stderr, "Child does not exist: %s\n", strerror(errno));
@@ -79,9 +79,9 @@ pid_t debug_wait(pid_t pid, int options) {
 				else {
 					fprintf(stderr, "Unknown error\n");
 				}
+#endif 
 				return result;
 			}
-#endif 
 		}
 #ifdef DEBUG
 		fprintf(stdout, "waiting pid %d again\n", pid);
@@ -512,20 +512,15 @@ void destroy() {
 }
 #pragma endregion
 
-/*
-   TODO: check if we have correctly close the file return zero
-   mejorar el paso de string * command
-*/
 int main(int argc, char * argv[]) {
 	/* echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null */
 	char buf[BUFFER_SIZE];
 	tline * line;
-	int i, j;
 
 	init();
 
+	prompt();
 	do {
-		prompt();
 		if (fgets(buf, BUFFER_SIZE, stdin) > 0) {
 			/* Leer una linea del taclado */
 			line = tokenize(buf);
