@@ -78,13 +78,13 @@
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="myshell.c" />
+  </ItemGroup>
+  <ItemGroup>
     <Library Include="libparser_64.a" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="parser.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="myshell.c" />
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
