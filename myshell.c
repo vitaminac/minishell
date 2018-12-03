@@ -19,9 +19,10 @@
 #define JOBINFO "[%d]+ Running \t %s &\n"
 #define DEFAULT_FILE_CREATE_MODE 0666
 
+/* almacenamos las informaciones asociados a los procesos creado por sistema  */
 typedef struct JobInfo {
 	pid_t pgid;
-	char * info;
+	char * command;
 	struct JobInfo * next;
 } JobInfo;
 
@@ -30,7 +31,7 @@ pid_t shell_pgid;
 JobInfo * job_list = NULL;
 pid_t last_bg_job;
 
-/* esperar al proceso pid y imprimir info de debug */
+/* esperar al proceso pid y imprimir command de debug */
 pid_t debug_wait(pid_t pid, int options) {
 	pid_t result;
 	int status;
@@ -106,13 +107,13 @@ void insert_job(JobInfo ** job_list_ptr, JobInfo * new_job) {
 		}
 		current->next = new_job;
 	}
-	printf(JOBINFO, i, current->info);
+	printf(JOBINFO, i, current->command);
 }
 
 JobInfo * new_job(pid_t pid, char * command) {
 	JobInfo * job = (JobInfo *)malloc(sizeof(JobInfo *));
 	job->pgid = pid;
-	job->info = command;
+	job->command = command;
 	job->next = NULL;
 	return job;
 }
@@ -140,7 +141,7 @@ void fg(int id, JobInfo ** job_list_ptr) {
 		}
 		if (i == id && current != NULL) {
 			pgid = current->pgid;
-			free(current->info);
+			free(current->command);
 			free(current);
 			tcsetpgrp(STDIN_FILENO, pgid);
 			debug_wait(pgid, 0);
@@ -158,7 +159,7 @@ void jobs(JobInfo ** job_list_ptr) {
 		while (*job_list_ptr != NULL && current == NULL) {
 			if (debug_wait((*job_list_ptr)->pgid, WNOHANG) != 0) {
 				current = (*job_list_ptr)->next;
-				free((*job_list_ptr)->info);
+				free((*job_list_ptr)->command);
 				free(*job_list_ptr);
 				*job_list_ptr = current;
 				current = NULL;
@@ -172,12 +173,12 @@ void jobs(JobInfo ** job_list_ptr) {
 			while (current != NULL) {
 				next = current->next;
 				if (debug_wait(current->pgid, WNOHANG) != 0) {
-					free((current)->info);
+					free((current)->command);
 					free(current);
 				}
 				else {
 					i += 1;
-					printf(JOBINFO, i, current->info);
+					printf(JOBINFO, i, current->command);
 				}
 				current = next;
 			}
@@ -502,8 +503,8 @@ void destroy() {
 #ifdef DEBUG
 		fprintf(stdout, "liberando memoria asosiada a %d\n", job_list->pgid);
 #endif
-		if (job_list->info != NULL) {
-			free(job_list->info);
+		if (job_list->command != NULL) {
+			free(job_list->command);
 		}
 		free(job_list);
 		job_list = next;
