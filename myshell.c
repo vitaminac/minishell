@@ -549,6 +549,7 @@ int main(int argc, char * argv[]) {
 				}
 			}
 #endif
+			/* hacer algo con la linea de command parseado */
 			execline(line, buf);
 			prompt();
 		}
