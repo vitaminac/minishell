@@ -12,6 +12,8 @@
 
 #include "parser.h"
 
+char * strdup(const char * str);
+
 /*#define DEBUG*/
 #define BUFFER_SIZE 4096
 #define ERR_FILE(FILE) "fichero %s: Error %s. Descripcion del error\n", FILE, strerror(errno)
@@ -329,7 +331,7 @@ bool inlinecommand(tline * line) {
    En caso de que no se ejecute en background,
    se espera a que todos los mandatos hayan finalizado
    para volver a mostrar el prompt y repetir el proceso. */
-void execline(tline * line, char * command) {
+void execline(tline * line, const char * command) {
 	static pid_t current;
 
 	int i;

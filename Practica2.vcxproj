@@ -75,7 +75,7 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <RemoteCCompileToolExe>gcc -Wall -Wextra</RemoteCCompileToolExe>
   </PropertyGroup>
   <ItemGroup>
     <ClCompile Include="myshell.c" />
@@ -89,6 +89,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <CLanguageStandard>c89</CLanguageStandard>
+      <CAdditionalWarning>%(CAdditionalWarning)</CAdditionalWarning>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
