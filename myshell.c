@@ -524,7 +524,7 @@ int main(int argc, char * argv[]) {
 
 	prompt();
 	do {
-		if (fgets(buf, BUFFER_SIZE, stdin) > 0) {
+		if (fgets(buf, BUFFER_SIZE, stdin) != NULL) {
 			/* Leer una linea del taclado */
 			line = tokenize(buf);
 			if (line == NULL) {
