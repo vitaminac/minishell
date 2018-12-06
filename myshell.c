@@ -18,11 +18,12 @@ char * strdup(const char * str);
 #define BUFFER_SIZE 4096
 #define ERR_FILE(FILE) "fichero %s: Error %s. Descripcion del error\n", FILE, strerror(errno)
 #define ERR_COMMAND "mandato: No se encuentra el mandato %s %s\n"
-#define JOBINFO "[%d]+ Running \t %s &\n"
+#define JOBINFO "[%d]+ Running \t %s"
 #define DEFAULT_FILE_CREATE_MODE 0666
 
 /* almacenamos las informaciones asociados a los procesos creado por sistema  */
 typedef struct JobInfo {
+	int id;
 	pid_t pgid;
 	char * command;
 	struct JobInfo * next;
@@ -93,23 +94,26 @@ pid_t debug_wait(pid_t pid, int options) {
 }
 
 #pragma region Job
+void print_job(JobInfo * job) {
+	printf(JOBINFO, job->id, job->command);
+}
+
 void insert_job(JobInfo ** job_list_ptr, JobInfo * new_job) {
-	int i = 1;
 	JobInfo * current = *job_list_ptr;
 	if (current == NULL) {
+		new_job->id = 0;
 		*job_list_ptr = new_job;
 		current = new_job;
 	}
 	else {
 		current = *job_list_ptr;
-		i += 1;
 		while (current->next != NULL) {
 			current = current->next;
-			i += 1;
 		}
+		new_job->id = current->id + 1;
 		current->next = new_job;
 	}
-	printf(JOBINFO, i, current->command);
+	print_job(new_job);
 }
 
 JobInfo * new_job(pid_t pid, char * command) {
@@ -120,28 +124,16 @@ JobInfo * new_job(pid_t pid, char * command) {
 	return job;
 }
 
-void bg(pid_t pid, JobInfo * job_list) {
-	while (job_list != NULL) {
-		if (job_list->pgid == pid) {
-			debug_wait(pid, 0);
-			return;
-		}
-		job_list = job_list->next;
-	}
-}
-
 void fg(int id, JobInfo ** job_list_ptr) {
-	int i = 1;
 	pid_t pgid;
 	JobInfo * current;
 	if (job_list_ptr != NULL) {
 		current = *job_list_ptr;
 		/* comprueba que esta ejecutando en backgroud */
-		while (i < id && current != NULL) {
+		while (current != NULL && id > current->id) {
 			current = current->next;
-			i++;
 		}
-		if (i == id && current != NULL) {
+		if (current != NULL && current->id == id) {
 			pgid = current->pgid;
 			free(current->command);
 			free(current);
@@ -154,7 +146,6 @@ void fg(int id, JobInfo ** job_list_ptr) {
 
 /* comprobar que si hay tarea terminada en el segundo plano y muestra los que no han terminado*/
 void jobs(JobInfo ** job_list_ptr) {
-	int i = 0;
 	JobInfo * current = NULL;
 	JobInfo * next = NULL;
 	if (job_list_ptr != NULL) {
@@ -179,8 +170,7 @@ void jobs(JobInfo ** job_list_ptr) {
 					free(current);
 				}
 				else {
-					i += 1;
-					printf(JOBINFO, i, current->command);
+					print_job(current);
 				}
 				current = next;
 			}
