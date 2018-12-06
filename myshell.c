@@ -21,7 +21,7 @@ char * strdup(const char * str);
 #define JOBINFO "[%d]+ Running \t %s"
 #define DEFAULT_FILE_CREATE_MODE 0666
 
-/* almacenamos las informaciones asociados a los procesos creado por sistema  */
+/* almacenamos las informaciones asociados a los procesos creados por sistema  */
 typedef struct JobInfo {
 	int id;
 	pid_t pgid;
