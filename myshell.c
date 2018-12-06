@@ -93,7 +93,6 @@ pid_t debug_wait(pid_t pid, int options) {
 	}
 }
 
-#pragma region Job
 void print_job(JobInfo * job) {
 	printf(JOBINFO, job->id, job->command);
 }
@@ -177,7 +176,6 @@ void jobs(JobInfo ** job_list_ptr) {
 		}
 	}
 }
-#pragma endregion
 
 /* Mostrar en pantalla un prompt (los símbolos msh> seguidos de un espacio). */
 void prompt() {
@@ -189,7 +187,6 @@ void prompt() {
 #endif
 }
 
-#pragma region Execute
 /* Ejecuta el commando por separado y redirecciona la entrada y salida si es necesario */
 void execute(const tcommand * command, int pgid,
 	int input, int output, int error,
@@ -427,9 +424,7 @@ void execline(tline * line, const char * command) {
 		}
 	}
 }
-#pragma endregion
 
-#pragma region initialization and deinitialization
 /* initialization, tarea de preparacion */
 void init() {
 	if (signal(SIGINT, SIG_IGN) == SIG_ERR)
@@ -503,9 +498,8 @@ void destroy() {
 	}
 
 }
-#pragma endregion
 
-int main(int argc, char * argv[]) {
+int main() {
 	/* echo "0" | sudo tee /proc/sys/kernel/yama/ptrace_scope > /dev/null */
 	char buf[BUFFER_SIZE];
 	tline * line;
