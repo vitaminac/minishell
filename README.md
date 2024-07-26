@@ -1,6 +1,1 @@
 * [Busybox](https://git.busybox.net/busybox/)
-* [Bash](https://www.gnu.org/software/bash/)
-* [zsh](https://github.com/zsh-users/zsh)
-* [PowerShell](https://github.com/PowerShell/PowerShell)
-* [Microsoft Terminal](https://github.com/microsoft/terminal)
-* [Fluent Terminal](https://github.com/felixse/FluentTerminal)
